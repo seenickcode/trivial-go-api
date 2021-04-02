@@ -1,23 +1,31 @@
-FROM golang:1.12-alpine
+FROM golang:1.16.3-alpine as builder
 
-RUN set -ex; \
-    apk update; \
-    apk add --no-cache git
+# RUN set -ex; \
+#     apk update; \
+#     apk add --no-cache git
 
-RUN apk --update add ca-certificates
+# RUN apk --update add ca-certificates
 
 ENV GO111MODULE=on
+ENV PORT=3001
 
-WORKDIR /app
+RUN mkdir /build
+
+WORKDIR /build
+
+COPY go.mod .
+COPY go.sum .
+
+RUN go mod download
 
 COPY . .
 
-RUN mkdir build
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o main .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -mod=vendor -o ./main ./*.go
+FROM scratch 
 
-WORKDIR /
+COPY --from=builder /build/main /app/
 
-EXPOSE 3001
+WORKDIR /app
 
-CMD ["/app/main"]
+CMD ["./main"]
